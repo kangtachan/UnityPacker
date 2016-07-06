@@ -40,9 +40,10 @@ namespace UnityPacker
 			for	(int i = 0; i < files.Length; ++i)
 			{
 				string file = files[i];
-				string altName = file;
+				var i = file.IndexOf("Assets"); // HACK
+				string altName = file.Substring(i+7);
 				if (file.StartsWith("."))
-                	altName = file.Replace("." + Path.DirectorySeparatorChar, "");
+                	altName = altName.Replace("." + Path.DirectorySeparatorChar, "");
 				
 				bool skip = false;
                 foreach (string dir in dirs)
@@ -128,7 +129,6 @@ namespace UnityPacker
             Stream gzoStream = new GZipOutputStream(outStream);
             TarArchive tarArchive = TarArchive.CreateOutputTarArchive(gzoStream);
 
-			Console.WriteLine(sourceDirectory);
 			tarArchive.RootPath = sourceDirectory.Replace('\\', '/');
             if (tarArchive.RootPath.EndsWith("/"))
                 tarArchive.RootPath = tarArchive.RootPath.Remove(tarArchive.RootPath.Length - 1);
