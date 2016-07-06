@@ -40,8 +40,8 @@ namespace UnityPacker
 			for	(int i = 0; i < files.Length; ++i)
 			{
 				string file = files[i];
-				var i = file.IndexOf("Assets"); // HACK
-				string altName = file.Substring(i+7);
+				var sI = file.IndexOf("Assets"); // HACK
+				string altName = file.Substring(sI+7);
 				if (file.StartsWith("."))
                 	altName = altName.Replace("." + Path.DirectorySeparatorChar, "");
 				
