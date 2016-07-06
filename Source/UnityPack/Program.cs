@@ -61,6 +61,7 @@ namespace UnityPacker
                 if (meaningfulHashes)
                 {
                     string metaFile = file + ".meta";
+                    if (!File.Exists(metaFile)) continue;
                     string hash = "";
                     
                     using (StreamReader read = new StreamReader(metaFile))
