@@ -148,6 +148,7 @@ namespace UnityPacker
                 tarEntry.TarHeader.GroupName = string.Empty;
                 tarEntry.TarHeader.UserId = 0;
                 tarEntry.Name = filename.Remove(0, tarArchive.RootPath.Length + 1);
+                tarEntry.Name = $"./{tarEntry.Name}";
                 tarArchive.WriteEntry(tarEntry, true);
             }
 
