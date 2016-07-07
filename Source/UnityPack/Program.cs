@@ -3,15 +3,16 @@ using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
 using System.IO;
-using ICSharpCode.SharpZipLib;
 using ICSharpCode.SharpZipLib.GZip;
 using ICSharpCode.SharpZipLib.Tar;
 
 namespace UnityPacker
 {
-    class Program
+    internal static class Program
     {
-        static void Main(string[] args)
+        private static readonly Random _random = new Random();
+
+        private static void Main(string[] args)
         {
             if (args.Length < 2)
             {
@@ -20,119 +21,117 @@ namespace UnityPacker
                 return;
             }
             
-            string inpath = args[0];
-            string fileName = args.Length > 1 ? args[1] : "Package";
-            bool meaningfulHashes = args.Length > 2 ? args[2].ToLower() == "y" || args[2].ToLower() == "yes" : false;
-            string root = args.Length > 3 ? args[3] : "";
-            string[] exts = args.Length > 4 ? args[4].Split(',') : new string[0];
-            string[] dirs = args.Length > 5 ? args[5].Split(',') : new string[0];
+            var inpath = args[0];
+            var fileName = args.Length > 1 ? args[1] : "Package";
+            var meaningfulHashes = args.Length > 2 && (args[2].ToLower() == "y" || args[2].ToLower() == "yes");
+            var root = args.Length > 3 ? args[3] : "";
+            var exts = args.Length > 4 ? args[4].Split(',') : new string[0];
+            var dirs = args.Length > 5 ? args[5].Split(',') : new string[0];
 
-            List<string> extensions = new List<string>(exts)
+            var extensions = new List<string>(exts)
             {
                 "meta"
             };
             
-            string[] files = Directory.GetFiles(inpath, "*.*", SearchOption.AllDirectories);
+            var files = Directory.GetFiles(inpath, "*.*", SearchOption.AllDirectories);
 
-            string tmpPath = Path.Combine(Path.GetTempPath(), "packUnity" + RandomStuff(8));
+            var tmpPath = Path.Combine(Path.GetTempPath(), "packUnity" + RandomStuff(8));
             Directory.CreateDirectory(tmpPath);
 
-			for	(int i = 0; i < files.Length; ++i)
+			for	(var i = 0; i < files.Length; ++i)
 			{
-				string file = files[i];
-				var sI = file.IndexOf("Assets"); // HACK
-				string altName = file.Substring(sI+7);
+				var file = files[i];
+				var sI = file.IndexOf("Assets", StringComparison.Ordinal); // HACK
+				var altName = file.Substring(sI+7);
 				if (file.StartsWith("."))
-                	altName = altName.Replace("." + Path.DirectorySeparatorChar, "");
+                	altName = altName.Replace($".{Path.DirectorySeparatorChar}", "");
 				
-				bool skip = false;
-                foreach (string dir in dirs)
+				var skip = false;
+                foreach (var dir in dirs)
+                {
                     if (altName.StartsWith(dir))
                     {
                         skip = true;
                         break;
                     }
+                }
 
-                string extension = Path.GetExtension(file).Replace(".", "");
+                var extension = Path.GetExtension(file).Replace(".", "");
                 if (skip || extensions.Contains(extension))
                     continue;
                 
                 string hash1 = RandomHash(), hash2 = RandomHash();
 
-                string metaFile = file + ".meta";                    
+                var metaFile = file + ".meta";                    
                 if (meaningfulHashes && File.Exists(metaFile))
                 {
-                    string hash = "";
+                    var hash = "";
                     
-                    using (StreamReader read = new StreamReader(metaFile))
+                    using (var read = new StreamReader(metaFile))
                     {
                         while (!read.EndOfStream)
                         {
-                            string line = read.ReadLine();
-                            if (line.StartsWith("guid"))
-                            {
-                                hash = line.Split(' ')[1];
-                                break;
-                            }
+                            var line = read.ReadLine();
+                            if (line == null || !line.StartsWith("guid")) continue;
+                            hash = line.Split(' ')[1];
+                            break;
                         }
                     }
                     hash1 = hash;
                 }
 
-                string path = Path.Combine(tmpPath, hash1);
+                var path = Path.Combine(tmpPath, hash1);
                 Directory.CreateDirectory(path);
 
                 File.Copy(file, Path.Combine(path, "asset"));
-                using (StreamWriter writer = new StreamWriter(Path.Combine(path, "pathname")))
-                    writer.Write(root + altName.Replace(Path.DirectorySeparatorChar + "", "/") + "\n" + hash2);
+                if (meaningfulHashes) File.Copy(metaFile, Path.Combine(path, "asset.meta"));
+			    using (var writer = new StreamWriter(Path.Combine(path, "pathname")))
+			    {
+			        writer.Write($"{root}{altName.Replace(Path.DirectorySeparatorChar + "", "/")}\n{hash2}");
+			    }
             }
 
-            CreateTarGZ(fileName  + ".unitypackage", tmpPath);
+            CreateTarGz($"{fileName}.unitypackage", tmpPath);
 
             Directory.Delete(tmpPath, true);
         }
-
-        static string RandomHash()
+        private static string RandomHash()
         {
             return CreateMd5(RandomStuff()).ToLower();
         }
-
-        static string CreateMd5(string input)
+        public static string CreateMd5(string input)
         {
-            MD5 md5 = MD5.Create();
-            byte[] inputBytes = Encoding.ASCII.GetBytes(input);
-            byte[] hashBytes = md5.ComputeHash(inputBytes);
+            var md5 = MD5.Create();
+            var inputBytes = Encoding.ASCII.GetBytes(input);
+            var hashBytes = md5.ComputeHash(inputBytes);
 
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < hashBytes.Length; i++)
+            var sb = new StringBuilder();
+            for (var i = 0; i < hashBytes.Length; i++)
             {
                 sb.Append(hashBytes[i].ToString("X2"));
             }
             return sb.ToString();
-        }
-
-
-        static Random r = new Random();
-        static string RandomStuff(int len = 32)
+        }        
+        private static string RandomStuff(int len = 32)
         {
-            string c = "";
-            for (int i = 0; i < len; i++)
+            var c = "";
+            for (var i = 0; i < len; i++)
             {
-                c += r.Next(0, 128);
+                c += _random.Next(0, 128);
             }
             return c;
         }
-
-        private static void CreateTarGZ(string tgzFilename, string sourceDirectory)
+        private static void CreateTarGz(string tgzFilename, string sourceDirectory)
         {
-            Stream outStream = File.Create(tgzFilename);
-            Stream gzoStream = new GZipOutputStream(outStream);
-            TarArchive tarArchive = TarArchive.CreateOutputTarArchive(gzoStream);
-
+            var outStream = File.Create(tgzFilename);
+            var gzoStream = new GZipOutputStream(outStream);
+            var tarArchive = TarArchive.CreateOutputTarArchive(gzoStream);
+            
 			tarArchive.RootPath = sourceDirectory.Replace('\\', '/');
             if (tarArchive.RootPath.EndsWith("/"))
+            {
                 tarArchive.RootPath = tarArchive.RootPath.Remove(tarArchive.RootPath.Length - 1);
-			Console.WriteLine(tarArchive.RootPath);
+            }            
 
             AddDirectoryFilesToTar(tarArchive, sourceDirectory, true);
 
@@ -141,20 +140,23 @@ namespace UnityPacker
 
         private static void AddDirectoryFilesToTar(TarArchive tarArchive, string sourceDirectory, bool recurse)
         {
-            TarEntry tarEntry;
-            string[] filenames = Directory.GetFiles(sourceDirectory);
-            foreach (string filename in filenames)
+            var filenames = Directory.GetFiles(sourceDirectory);
+            foreach (var filename in filenames)
             {
-                tarEntry = TarEntry.CreateEntryFromFile(filename);
+                var tarEntry = TarEntry.CreateEntryFromFile(filename);
+                tarEntry.TarHeader.UserName = string.Empty;
+                tarEntry.TarHeader.GroupName = string.Empty;
+                tarEntry.TarHeader.UserId = 0;
                 tarEntry.Name = filename.Remove(0, tarArchive.RootPath.Length + 1);
                 tarArchive.WriteEntry(tarEntry, true);
             }
 
-            if (recurse)
+            if (!recurse) return;
+
+            var directories = Directory.GetDirectories(sourceDirectory);
+            foreach (var directory in directories)
             {
-                string[] directories = Directory.GetDirectories(sourceDirectory);
-                foreach (string directory in directories)
-                    AddDirectoryFilesToTar(tarArchive, directory, true);
+                AddDirectoryFilesToTar(tarArchive, directory, true);
             }
         }
     }
